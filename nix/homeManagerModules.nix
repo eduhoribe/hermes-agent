@@ -18,7 +18,12 @@
 
     let
       cfg = config.programs.hermes-agent;
-      hermes-agent = inputs.self.packages.${pkgs.system}.default;
+      effectivePackage =
+        if cfg.extraPythonPackages == [ ] && cfg.extraDependencyGroups == [ ] then
+          cfg.package
+        else
+          cfg.package.override { inherit (cfg) extraPythonPackages extraDependencyGroups; };
+      hermes-agent = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.default;
 
       # Deep-merge config type (same as nixosModules.nix)
       deepConfigType = lib.types.mkOptionType {
@@ -340,6 +345,46 @@
           description = "Extra packages available on PATH.";
         };
 
+        extraPythonPackages = lib.mkOption {
+          type = lib.types.listOf lib.types.package;
+          default = [ ];
+          description = ''
+            Python packages to add to PYTHONPATH for entry-point plugin discovery.
+            These are pip-packaged plugins that register via the
+            hermes_agent.plugins entry-point group. Each package must be built
+            with the same Python interpreter as hermes (python312).
+          '';
+          example = lib.literalExpression ''
+            [
+              (pkgs.python312Packages.buildPythonPackage {
+                pname = "rtk-hermes";
+                version = "1.0.0";
+                src = pkgs.fetchFromGitHub {
+                  owner = "ogallotti";
+                  repo = "rtk-hermes";
+                  rev = "main";
+                  hash = "sha256-...";
+                };
+              })
+            ]
+          '';
+        };
+
+        extraDependencyGroups = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+          description = ''
+            Additional pyproject.toml optional-dependency groups to include in
+            the sealed Python venv. These are resolved by uv alongside core
+            dependencies — no PYTHONPATH patching or collision risk.
+
+            Use this for optional extras already declared in hermes-agent's
+            pyproject.toml (e.g. "hindsight", "honcho", "voice").
+            Use extraPythonPackages for external packages not in pyproject.toml.
+          '';
+          example = [ "hindsight" ];
+        };
+
         restart = lib.mkOption {
           type = lib.types.str;
           default = "always";
@@ -417,7 +462,7 @@
 
           # ── Packages & environment ─────────────────────────────────────────
           {
-            home.packages = [ cfg.package ] ++ cfg.extraPackages;
+            home.packages = [ effectivePackage ] ++ cfg.extraPackages;
             home.sessionVariables = {
               HERMES_HOME = "${cfg.stateDir}/.hermes";
               HERMES_MANAGED = if cfg.managedMode == "nixos" then "home-manager-nixos" else "home-manager";
@@ -501,7 +546,7 @@
                 let
                   servicePath = lib.makeBinPath (
                     [
-                      cfg.package
+                      effectivePackage
                       pkgs.bash
                       pkgs.coreutils
                       pkgs.git
@@ -538,7 +583,7 @@
 
                     ExecStart = lib.concatStringsSep " " (
                       [
-                        "${cfg.package}/bin/hermes"
+                        "${effectivePackage}/bin/hermes"
                         "gateway"
                       ]
                       ++ cfg.extraArgs
@@ -586,7 +631,7 @@
                     exec ${
                       lib.concatStringsSep " " (
                         [
-                          "${cfg.package}/bin/hermes"
+                          "${effectivePackage}/bin/hermes"
                           "gateway"
                         ]
                         ++ cfg.extraArgs
@@ -616,7 +661,7 @@
                     MESSAGING_CWD = cfg.workingDirectory;
                     PATH = lib.makeBinPath (
                       [
-                        cfg.package
+                        effectivePackage
                         pkgs.bash
                         pkgs.coreutils
                         pkgs.git
