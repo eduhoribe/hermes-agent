@@ -244,7 +244,7 @@ json.dump(sorted(leaf_paths(DEFAULT_CONFIG)), sys.stdout, indent=2)
           hermesWithGroups = hermes-agent.override {
             extraDependencyGroups = [ "honcho" ];
           };
-        in pkgs.runCommand "hermes-extra-dependency-groups" { }
+        in pkgs.runCommand "hermes-extra-dependency-groups" { } ''
           set -e
           echo "=== Checking extraDependencyGroups override evaluates ==="
 
@@ -275,7 +275,7 @@ json.dump(sorted(leaf_paths(DEFAULT_CONFIG)), sys.stdout, indent=2)
         '';
 
         # Verify HERMES_MANAGED=home-manager guard works on mutation commands
-        home-manager-guard = pkgs.runCommand "hermes-home-manager-guard" { }
+        home-manager-guard = pkgs.runCommand "hermes-home-manager-guard" { } ''
           set -e
           export HOME=$(mktemp -d)
 
@@ -297,7 +297,7 @@ json.dump(sorted(leaf_paths(DEFAULT_CONFIG)), sys.stdout, indent=2)
         '';
 
         # Verify HERMES_MANAGED=home-manager-nixos guard (NixOS module mode)
-        home-manager-nixos-guard = pkgs.runCommand "hermes-home-manager-nixos-guard" { }
+        home-manager-nixos-guard = pkgs.runCommand "hermes-home-manager-nixos-guard" { } ''
           set -e
           export HOME=$(mktemp -d)
 
